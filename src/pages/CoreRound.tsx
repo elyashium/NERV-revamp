@@ -3,10 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { db } from '../lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
 import {
-  Mic, MicOff, Camera, CameraOff, Volume2, VolumeX,
-  Loader2, ArrowLeft, Clock, Briefcase, X
+  Mic, MicOff, Camera, CameraOff,
+  Loader2, Clock, Briefcase, X
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
@@ -15,7 +14,6 @@ import { sarvamTTS as azureTTS } from '../services/sarvamTTSService';
 import { sarvamSTT as whisperService } from '../services/sarvamSTTService';
 import { apiService } from '../services/apiService';
 import { openAI, QuestionContext } from '../services/openAIService';
-import { resumeService } from '../services/resumeService';
 import { getResumeData } from '../services/firebaseResumeService';
 
 interface Message {
@@ -574,22 +572,28 @@ const CoreRound: React.FC = (): JSX.Element => {
   }
 
   return (
-    <div className="min-h-screen bg-primary text-white">
+    <div className="h-screen bg-black text-white flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
+      <div className="flex-shrink-0 bg-black/60 backdrop-blur-md border-b border-white/10 px-6 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <Briefcase className="h-6 w-6 text-blue-400" />
-            <h1 className="text-xl font-semibold">Core Round - Technical Subjects</h1>
+          <div className="flex items-center space-x-3">
+            <div className="p-2 bg-green-500/20 rounded-lg border border-green-500/30">
+              <Briefcase className="h-5 w-5 text-green-400" />
+            </div>
+            <div>
+              <h1 className="text-base font-semibold leading-tight">Core Round</h1>
+              <p className="text-xs text-gray-400">DBMS, OOP, OS & System Design</p>
+            </div>
           </div>
+
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5" />
-              <span className="font-mono text-lg">{formatTime(timeRemaining)}</span>
+            <div className="flex items-center space-x-2 px-3 py-1.5 bg-white/5 rounded-lg border border-white/10">
+              <Clock className="h-4 w-4 text-gray-400" />
+              <span className="font-mono text-sm font-medium">{formatTime(timeRemaining)}</span>
             </div>
             <button
               onClick={() => setIsInterviewComplete(true)}
-              className="flex items-center space-x-1 px-3 py-1 bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 rounded-lg text-red-300 text-sm transition-colors"
+              className="flex items-center space-x-1.5 px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm transition-colors"
             >
               <X className="h-4 w-4" />
               <span>End Round</span>
@@ -598,134 +602,125 @@ const CoreRound: React.FC = (): JSX.Element => {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Video Feed */}
-          <div className="lg:col-span-1">
-            <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-6">
-              <h3 className="text-lg font-semibold mb-4 flex items-center">
-                <Camera className="h-5 w-5 mr-2" />
-                Video Feed
-              </h3>
-
-              <div className="relative bg-black rounded-lg overflow-hidden mb-4">
-                <video ref={videoRef} className="w-full h-64 object-cover" autoPlay muted playsInline />
+      {/* Main Content */}
+      <div className="flex-1 min-h-0 p-4">
+        <div className="max-w-7xl mx-auto h-full grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Left Panel: Camera + Emotions */}
+          <div className="lg:col-span-1 flex flex-col gap-4 min-h-0">
+            {/* Camera Card */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden flex-shrink-0">
+              <div className="relative bg-black aspect-video">
+                <video ref={videoRef} className="w-full h-full object-cover" style={{ transform: 'scaleX(-1)' }} autoPlay muted playsInline />
                 <canvas ref={canvasRef} className="hidden" />
+
                 {!isCameraOn && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-800">
-                    <div className="text-center">
-                      <CameraOff className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                      <p className="text-gray-400">Camera Off</p>
-                      <button onClick={startCamera} className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors">
-                        Start Camera
-                      </button>
-                    </div>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80">
+                    <CameraOff className="h-10 w-10 text-gray-500 mb-3" />
+                    <p className="text-gray-400 text-sm mb-3">Camera is off</p>
+                    <button onClick={startCamera} className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-sm transition-colors">
+                      <Camera className="h-4 w-4" />
+                      <span>Enable Camera</span>
+                    </button>
                   </div>
                 )}
-              </div>
 
-              <div className="flex space-x-2 mb-4">
-                {!isCameraOn ? (
-                  <button onClick={startCamera} className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors">
-                    <Camera className="h-4 w-4" />
-                    <span>Start Camera</span>
-                  </button>
-                ) : (
-                  <button onClick={stopCamera} className="flex items-center space-x-2 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-colors">
-                    <CameraOff className="h-4 w-4" />
-                    <span>Stop Camera</span>
+                {isCameraOn && (
+                  <div className="absolute top-3 left-3 flex items-center space-x-1.5 px-2 py-1 bg-black/60 backdrop-blur-sm rounded-full border border-white/10">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                    <span className="text-xs text-gray-300 font-medium">LIVE</span>
+                  </div>
+                )}
+
+                {isCameraOn && (
+                  <button onClick={stopCamera} className="absolute top-3 right-3 p-1.5 bg-black/60 backdrop-blur-sm hover:bg-red-500/30 border border-white/10 rounded-full transition-colors" title="Turn off camera">
+                    <CameraOff className="h-3.5 w-3.5 text-gray-300" />
                   </button>
                 )}
               </div>
 
               {/* Emotion Analysis */}
-              <div className="mt-4 p-4 bg-white/5 rounded-lg">
-                <h4 className="text-sm font-medium mb-2">Emotion Analysis</h4>
-                {isCameraOn ? (
-                  userExpression ? (
-                    <div className="space-y-3">
-                      {userExpression.emotionBreakdown && (
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-medium text-gray-300 mb-2">Emotions:</h4>
-                          {userExpression.emotionBreakdown.slice(0, 5).map((emotion, index) => (
-                            <div key={index} className="space-y-1">
-                              <div className="flex justify-between text-xs">
-                                <span className="text-gray-300">{emotion.name}:</span>
-                                <span className="text-white font-medium">{(emotion.score * 100).toFixed(0)}%</span>
-                              </div>
-                              <div className="w-full bg-gray-700 rounded-full h-1.5">
-                                <div
-                                  className="bg-gradient-to-r from-blue-500 to-cyan-500 h-1.5 rounded-full transition-all duration-300"
-                                  style={{ width: `${emotion.score * 100}%` }}
-                                />
-                              </div>
-                            </div>
-                          ))}
+              <div className="p-4">
+                <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Emotion Analysis</h4>
+                {isCameraOn && userExpression ? (
+                  <div className="space-y-2">
+                    {userExpression.emotionBreakdown && userExpression.emotionBreakdown.slice(0, 4).map((emotion: any, index: number) => (
+                      <div key={index}>
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="text-gray-400">{emotion.name}</span>
+                          <span className="text-white">{(emotion.score * 100).toFixed(0)}%</span>
                         </div>
-                      )}
-                      <div className="space-y-2 text-sm border-t border-gray-600 pt-2">
-                        <div className="flex justify-between">
-                          <span>Confidence:</span>
-                          <span className={userExpression.isConfident ? 'text-green-400' : 'text-red-400'}>
-                            {userExpression.isConfident ? 'High' : 'Low'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Status:</span>
-                          <span className={userExpression.isStruggling ? 'text-yellow-400' : 'text-green-400'}>
-                            {userExpression.isStruggling ? 'Struggling' : 'Doing Well'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Data Source:</span>
-                          <span className="text-blue-400 text-xs">
-                            {userExpression.emotionBreakdown && userExpression.emotionBreakdown.length > 0 ? 'Real Face Detected' : 'Fallback Data'}
-                          </span>
+                        <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all duration-500"
+                            style={{ width: `${emotion.score * 100}%` }}
+                          />
                         </div>
                       </div>
+                    ))}
+                    <div className="flex items-center justify-between pt-1 border-t border-white/10 text-xs">
+                      <span className={userExpression.isConfident ? 'text-green-400' : 'text-amber-400'}>
+                        {userExpression.isConfident ? '✓ Confident' : '⚡ Building confidence'}
+                      </span>
+                      <span className="text-gray-500">{Math.round(userExpression.confidenceScore * 100)}%</span>
                     </div>
-                  ) : (
-                    <p className="text-gray-400 text-sm">
-                      {isCapturingExpression ? 'Analyzing emotions...' : 'Turn on camera for emotion analysis'}
-                    </p>
-                  )
+                  </div>
                 ) : (
-                  <p className="text-gray-400 text-sm">Turn on camera for emotion analysis</p>
+                  <p className="text-gray-500 text-xs">
+                    {isCameraOn ? (isAnalyzing ? 'Analyzing...' : 'Waiting for data...') : 'Enable camera to analyze emotions'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="flex-shrink-0 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm flex items-start space-x-2">
+                <span className="flex-1">{error}</span>
+                <button onClick={() => setError(null)} className="text-red-500 hover:text-red-300 flex-shrink-0">✕</button>
+              </div>
+            )}
+          </div>
+
+          {/* Right Panel: Chat */}
+          <div className="lg:col-span-2 flex flex-col min-h-0">
+            <div className="flex-1 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 flex flex-col min-h-0 overflow-hidden">
+              {/* Chat header */}
+              <div className="flex-shrink-0 px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Briefcase className="h-4 w-4 text-green-400" />
+                  <h3 className="text-sm font-semibold">Interview Chat</h3>
+                </div>
+                {isLoading && (
+                  <div className="flex items-center space-x-2 text-xs text-gray-400">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Thinking...</span>
+                  </div>
                 )}
               </div>
 
-              {/* Error display */}
-              {error && (
-                <div className="mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-                  {error}
-                  <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-200">✕</button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Chat Interface */}
-          <div className="lg:col-span-2">
-            <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-6 h-full flex flex-col">
-              <h3 className="text-lg font-semibold mb-4">Interview Chat</h3>
-
-              {/* Messages */}
-              <div className="flex-1 overflow-y-auto space-y-4 min-h-0 mb-4 max-h-96">
+              {/* Scrollable Messages */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 min-h-0">
                 <AnimatePresence>
                   {messages.map((message) => (
                     <motion.div
                       key={message.id}
-                      initial={{ opacity: 0, y: 20 }}
+                      initial={{ opacity: 0, y: 16 }}
                       animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -20 }}
+                      exit={{ opacity: 0, y: -16 }}
+                      transition={{ duration: 0.25 }}
                       className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div className={`max-w-[80%] p-4 rounded-lg ${message.sender === 'user' ? 'bg-blue-600 text-white' : 'bg-white/10 text-gray-100'}`}>
-                        <div className="prose prose-invert max-w-none">
+                      <div
+                        className={`max-w-[82%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${message.sender === 'user'
+                          ? 'bg-green-600 text-white rounded-br-md'
+                          : 'bg-white/10 text-gray-100 border border-white/10 rounded-bl-md'
+                          }`}
+                      >
+                        <div className="prose prose-invert prose-sm max-w-none">
                           <ReactMarkdown>{message.text}</ReactMarkdown>
                         </div>
-                        <div className="text-xs opacity-70 mt-2">
-                          {message.timestamp.toLocaleTimeString()}
+                        <div className="text-xs opacity-40 mt-1.5">
+                          {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                     </motion.div>
@@ -734,45 +729,43 @@ const CoreRound: React.FC = (): JSX.Element => {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Controls */}
-              <div className="sticky bottom-0 space-y-4 bg-black/20 backdrop-blur-sm rounded-lg p-4 -mx-2 -mb-2">
-                <div className="flex items-center space-x-4">
+              {/* Input Bar */}
+              <div className="flex-shrink-0 px-5 py-4 border-t border-white/10 space-y-3">
+                <div className="flex items-center space-x-3">
                   {!isRecording ? (
                     <button
                       onClick={startRecording}
-                      className="flex items-center space-x-2 px-6 py-3 bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                      className="flex items-center space-x-2 px-4 py-2 bg-white/10 hover:bg-red-500/20 border border-white/10 hover:border-red-500/40 rounded-xl text-sm transition-all"
                     >
-                      <Mic className="h-5 w-5" />
-                      <span>Start Recording</span>
+                      <Mic className="h-4 w-4" />
+                      <span>Voice Answer</span>
                     </button>
                   ) : (
                     <button
                       onClick={stopRecording}
-                      className="flex items-center space-x-2 px-6 py-3 bg-gray-600 hover:bg-gray-700 rounded-lg transition-colors"
+                      className="flex items-center space-x-2 px-4 py-2 bg-red-600/30 hover:bg-red-600/50 border border-red-500/50 rounded-xl text-sm text-red-300 transition-all animate-pulse"
                     >
-                      <MicOff className="h-5 w-5" />
+                      <MicOff className="h-4 w-4" />
                       <span>Stop Recording</span>
                     </button>
                   )}
-
-                  {isLoading && (
-                    <div className="flex items-center space-x-2 text-sm text-gray-400">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span>Generating question...</span>
+                  {isCameraOn && (
+                    <div className="flex items-center space-x-1.5 text-xs text-green-400">
+                      <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                      <span>Emotion tracking active</span>
                     </div>
                   )}
                 </div>
 
-                {/* Chat Input */}
                 <form onSubmit={handleChatSubmit} className="flex space-x-2">
                   <input
                     type="text"
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder="Type your response here..."
-                    className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                    placeholder="Type your answer..."
+                    className="flex-1 px-4 py-2.5 bg-white/5 border border-white/15 rounded-xl text-white text-sm placeholder-gray-500 focus:outline-none focus:border-green-500/60 focus:bg-white/10 transition-all"
                   />
-                  <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                  <button type="submit" className="px-5 py-2.5 bg-green-600 hover:bg-green-500 text-white text-sm rounded-xl transition-colors font-medium">
                     Send
                   </button>
                 </form>

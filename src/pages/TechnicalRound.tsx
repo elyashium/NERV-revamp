@@ -1048,18 +1048,18 @@ const TechnicalRound: React.FC = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 min-h-0 p-4">
-        <div className="max-w-7xl mx-auto h-full grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="max-w-7xl mx-auto h-full grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-          {/* LEFT PANEL: Chat / Code Editor (Takes up 2/3 width) */}
-          <div className="lg:col-span-2 flex flex-col min-h-0 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden relative">
+          {/* LEFT PANEL: Chat / Code Editor (Takes up 3/5 width) */}
+          <div className="lg:col-span-3 flex flex-col min-h-0 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden relative">
 
             {/* Panel Tabs */}
             <div className="flex-shrink-0 flex items-center border-b border-white/10 bg-black/20">
               <button
                 onClick={() => setActivePanel('chat')}
                 className={`flex items-center space-x-2 px-6 py-4 text-sm font-medium transition-colors border-b-2 ${activePanel === 'chat'
-                    ? 'border-blue-500 text-blue-400 bg-blue-500/5'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                  ? 'border-blue-500 text-blue-400 bg-blue-500/5'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
                   }`}
               >
                 <MessageSquare className="h-4 w-4" />
@@ -1072,8 +1072,8 @@ const TechnicalRound: React.FC = () => {
               <button
                 onClick={() => setActivePanel('code')}
                 className={`flex items-center space-x-2 px-6 py-4 text-sm font-medium transition-colors border-b-2 ${activePanel === 'code'
-                    ? 'border-blue-500 text-blue-400 bg-blue-500/5'
-                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
+                  ? 'border-blue-500 text-blue-400 bg-blue-500/5'
+                  : 'border-transparent text-gray-400 hover:text-gray-200 hover:bg-white/5'
                   }`}
               >
                 <Code2 className="h-4 w-4" />
@@ -1109,8 +1109,8 @@ const TechnicalRound: React.FC = () => {
                       >
                         <div
                           className={`max-w-[85%] px-5 py-4 rounded-2xl text-[15px] leading-relaxed shadow-sm ${message.sender === 'user'
-                              ? 'bg-blue-600 text-white rounded-br-sm'
-                              : 'bg-white/10 text-gray-100 border border-white/10 rounded-bl-sm'
+                            ? 'bg-blue-600 text-white rounded-br-sm'
+                            : 'bg-white/10 text-gray-100 border border-white/10 rounded-bl-sm'
                             }`}
                         >
                           <div className="prose prose-invert prose-sm max-w-none">
@@ -1280,8 +1280,8 @@ const TechnicalRound: React.FC = () => {
             </div>
           </div>
 
-          {/* RIGHT PANEL: AI Avatar & Camera Stack (Takes up 1/3 width) */}
-          <div className="lg:col-span-1 flex flex-col gap-6 min-h-0">
+          {/* RIGHT PANEL: AI Avatar & Camera Stack (Takes up 2/5 width) */}
+          <div className="lg:col-span-2 flex flex-col gap-6 min-h-0">
 
             {/* Top: AI Avatar Frame */}
             <div className="flex-1 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden flex flex-col">
@@ -1347,49 +1347,30 @@ const TechnicalRound: React.FC = () => {
                 {isCameraOn && (
                   <button
                     onClick={stopCamera}
-                    className="absolute top-3 right-3 p-1.5 bg-black/60 backdrop-blur-sm hover:bg-red-500/30 border border-white/10 rounded-full transition-colors"
+                    className="absolute top-3 right-3 p-1.5 bg-black/60 backdrop-blur-sm hover:bg-red-500/30 border border-white/10 rounded-full transition-colors z-10"
                     title="Turn off camera"
                   >
                     <CameraOff className="h-3.5 w-3.5 text-gray-300" />
                   </button>
                 )}
-              </div>
 
-              {/* Emotion Analysis */}
-              <div className="p-4 border-t border-white/10 bg-black/20">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Emotion Tracking</h4>
-                  {isCameraOn && userExpression && (
-                    <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${userExpression.isConfident ? 'bg-green-500/20 text-green-400' : 'bg-amber-500/20 text-amber-400'}`}>
-                      {userExpression.isConfident ? 'Confident' : 'Uncertain'}
-                    </span>
-                  )}
-                </div>
+                {/* Minimal Emotion Overlay Badge */}
+                {isCameraOn && userExpression && (
+                  <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center space-x-2 px-3 py-1.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-xl shadow-2xl"
+                    >
+                      <div className={`w-2 h-2 rounded-full ${userExpression.isConfident ? 'bg-green-400' : 'bg-amber-400'} shadow-[0_0_8px_rgba(255,255,255,0.3)]`} />
+                      <span className="text-[11px] font-bold text-gray-200 uppercase tracking-tight">
+                        {userExpression.dominantEmotion}: {(userExpression.confidenceScore * 100).toFixed(0)}%
+                      </span>
+                    </motion.div>
 
-                {isCameraOn && userExpression ? (
-                  <div className="space-y-2.5">
-                    {userExpression.emotionBreakdown && userExpression.emotionBreakdown.slice(0, 3).map((emotion: any, index: number) => (
-                      <div key={index}>
-                        <div className="flex justify-between text-xs mb-1">
-                          <span className="text-gray-300">{emotion.name}</span>
-                          <span className="text-white">{(emotion.score * 100).toFixed(0)}%</span>
-                        </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-blue-500 to-indigo-400 rounded-full transition-all duration-500"
-                            style={{ width: `${emotion.score * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex items-center space-x-2 text-gray-500 text-xs py-2">
-                    {isCameraOn && isAnalyzing ? (
-                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /><span>Analyzing expressions...</span></>
-                    ) : (
-                      <span>{isCameraOn ? 'Waiting for face data...' : 'Camera required for tracking.'}</span>
-                    )}
+                    <div className="flex items-center bg-black/40 backdrop-blur-sm px-2 py-1 rounded-lg border border-white/5 text-[10px] text-gray-400 font-medium italic">
+                      AI sentiment analysis active
+                    </div>
                   </div>
                 )}
               </div>

@@ -57,6 +57,7 @@ const CoreRound: React.FC = (): JSX.Element => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [avatarSpeakText, setAvatarSpeakText] = useState<string>('');
 
   // Interview data
   const [messages, setMessages] = useState<Message[]>(previousMessages);
@@ -225,11 +226,8 @@ const CoreRound: React.FC = (): JSX.Element => {
       setIsCapturingExpression(true);
       setTimeout(() => captureFrame(questionId), 2000);
 
-      try {
-        await azureTTS.speak(question, 'core');
-      } catch (ttsError) {
-        console.warn('TTS failed, continuing without audio:', ttsError);
-      }
+      // Speak the question via D-ID avatar
+      setAvatarSpeakText(question);
 
     } catch (error) {
       console.error('Error starting core round:', error);
@@ -315,7 +313,8 @@ const CoreRound: React.FC = (): JSX.Element => {
       setPreviousQuestions(prev => [...prev, nextQuestion]);
       setCurrentQuestionId(nextQuestionId);
 
-      await azureTTS.speak(nextQuestion, 'core');
+      // Speak the response via D-ID avatar
+      setAvatarSpeakText(nextQuestion);
 
     } catch (error) {
       console.error('Error handling user response:', error);
@@ -752,7 +751,7 @@ const CoreRound: React.FC = (): JSX.Element => {
                 )}
               </div>
               <div className="flex-1 relative bg-black/40 min-h-[200px]">
-                <InterviewerAvatar isSpeaking={isLoading} accentColor="green" />
+                <InterviewerAvatar isSpeaking={isLoading} accentColor="green" speakText={avatarSpeakText} />
               </div>
             </div>
 

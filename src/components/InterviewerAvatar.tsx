@@ -1,15 +1,22 @@
-import React, { useEffect, useRef } from 'react';
-import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { useEffect, useRef, useState } from 'react';
+import {
+    didAgentService,
+    ConnectionState,
+    VideoState,
+} from '../services/didAgentService';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Vanilla Three.js avatar — avoids @react-three/fiber entirely so it doesn't
-// conflict with @splinetool's internally-bundled Three.js copy.
+// D-ID Real-Time Avatar
+// Streams an interactive avatar via WebRTC using D-ID talks/streams API.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface InterviewerAvatarProps {
     isSpeaking: boolean;
     accentColor?: 'blue' | 'green' | 'purple';
+    /** Text for the agent to speak (lip-synced avatar). */
+    speakText?: string;
+    /** Called when the D-ID agent finishes initialising + connecting. */
+    onAgentReady?: () => void;
 }
 
 const RING_COLORS: Record<string, string> = {
@@ -18,185 +25,164 @@ const RING_COLORS: Record<string, string> = {
     purple: 'border-purple-400/40 shadow-purple-500/30',
 };
 
+const STATUS_COLORS: Record<string, string> = {
+    blue: 'text-blue-400',
+    green: 'text-green-400',
+    purple: 'text-purple-400',
+};
+
 export function InterviewerAvatar({
     isSpeaking,
     accentColor = 'blue',
+    speakText,
+    onAgentReady,
 }: InterviewerAvatarProps) {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const isSpeakingRef = useRef(isSpeaking);
-    const disposeRef = useRef<(() => void) | null>(null);
+    const streamVideoRef = useRef<HTMLVideoElement>(null);
+    const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
+    const [videoState, setVideoState] = useState<VideoState>('idle');
+    const [error, setError] = useState<string>('');
+    const initRef = useRef(false);
+    const lastSpeakTextRef = useRef<string>('');
 
-    // Keep a live ref so the animation loop can read current value without
-    // needing a re-render or closure update.
+    // ── Initialise the D-ID WebRTC stream on mount ───────────────────────────
     useEffect(() => {
-        isSpeakingRef.current = isSpeaking;
-    }, [isSpeaking]);
+        if (initRef.current) return;
+        initRef.current = true;
 
-    // Build the Three.js scene once on mount.
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        if (!canvas) return;
-
-        // ── Renderer ───────────────────────────────────────────────────────────
-        const renderer = new THREE.WebGLRenderer({
-            canvas,
-            antialias: true,
-            alpha: true,
-        });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-        renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
-
-        // ── Scene & Camera ─────────────────────────────────────────────────────
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(
-            38,
-            canvas.clientWidth / canvas.clientHeight,
-            0.01,
-            100,
-        );
-        camera.position.set(0, 0.05, 0.45);
-
-        // ── Lights ─────────────────────────────────────────────────────────────
-        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
-
-        const keyLight = new THREE.DirectionalLight(0xffffff, 1.5);
-        keyLight.position.set(1, 2, 2);
-        scene.add(keyLight);
-
-        const fillLight = new THREE.DirectionalLight(0x8b9eff, 0.6);
-        fillLight.position.set(-1, 0, 1);
-        scene.add(fillLight);
-
-        // ── Morph-target helpers ───────────────────────────────────────────────
-        let headMesh: THREE.SkinnedMesh | null = null;
-        let teethMesh: THREE.SkinnedMesh | null = null;
-
-        const getMorphIndex = (mesh: THREE.SkinnedMesh, name: string): number | undefined =>
-            mesh.morphTargetDictionary?.[name];
-
-        const setMorph = (mesh: THREE.SkinnedMesh | null, name: string, value: number) => {
-            if (!mesh?.morphTargetDictionary || !mesh.morphTargetInfluences) return;
-            const idx = getMorphIndex(mesh, name);
-            if (idx !== undefined) mesh.morphTargetInfluences[idx] = value;
-        };
-
-        const lerp = THREE.MathUtils.lerp;
-
-        // ── Load GLB ───────────────────────────────────────────────────────────
-        const loader = new GLTFLoader();
-        let animFrameId = 0;
-        let modelGroup: THREE.Group | null = null;
-        let blinkValue = 0;
-        let blinkTimer = Math.random() * 4 + 2;
-        let prevTimestamp = 0;
-
-        loader.load('/model.glb', (gltf) => {
-            modelGroup = gltf.scene;
-
-            // Find the two meshes by name
-            gltf.scene.traverse((obj) => {
-                if (!(obj instanceof THREE.SkinnedMesh)) return;
-                if (obj.name === 'AvatarHead') headMesh = obj;
-                if (obj.name === 'AvatarTeethLower') teethMesh = obj;
+        const init = async () => {
+            await didAgentService.initialize({
+                onSrcObjectReady: (srcObject) => {
+                    if (streamVideoRef.current) {
+                        streamVideoRef.current.srcObject = srcObject;
+                    }
+                },
+                onConnectionStateChange: (state) => {
+                    setConnectionState(state);
+                    if (state === 'connected') {
+                        onAgentReady?.();
+                    }
+                },
+                onVideoStateChange: (state) => {
+                    setVideoState(state);
+                },
+                onError: (err) => {
+                    setError(err);
+                },
             });
 
-            scene.add(modelGroup);
-
-            // ── Positioning ──────────────────────────────────────────────────
-            // Most humanoid models are ~1.7m tall. To show the head, we move 
-            // the model down so the head is at the camera's level.
-            modelGroup.position.y = -1.55;
-            modelGroup.position.z = 0;
-
-            // ── Animation loop ─────────────────────────────────────────────────
-            const clock = new THREE.Clock();
-
-            const animate = () => {
-                animFrameId = requestAnimationFrame(animate);
-                const t = clock.getElapsedTime();
-                const delta = clock.getDelta();
-
-                // Jaw animation
-                const speaking = isSpeakingRef.current;
-                const targetJaw = speaking
-                    ? Math.max(0, Math.sin(t * 9) * 0.45 + 0.3)
-                    : 0;
-
-                if (headMesh?.morphTargetInfluences && headMesh.morphTargetDictionary) {
-                    const idx = getMorphIndex(headMesh, 'jawOpen');
-                    if (idx !== undefined) {
-                        headMesh.morphTargetInfluences[idx] = lerp(
-                            headMesh.morphTargetInfluences[idx] ?? 0,
-                            targetJaw,
-                            0.18,
-                        );
-                    }
-                }
-                if (teethMesh?.morphTargetInfluences && teethMesh.morphTargetDictionary) {
-                    const idx = getMorphIndex(teethMesh, 'jawOpen');
-                    if (idx !== undefined) {
-                        teethMesh.morphTargetInfluences[idx] = lerp(
-                            teethMesh.morphTargetInfluences[idx] ?? 0,
-                            targetJaw,
-                            0.18,
-                        );
-                    }
-                }
-
-                // Blink
-                blinkTimer -= delta;
-                if (blinkTimer <= 0) {
-                    blinkValue = 1;
-                    blinkTimer = Math.random() * 4 + 2;
-                }
-                blinkValue = lerp(blinkValue, 0, 0.15);
-                setMorph(headMesh, 'eyeBlinkLeft', blinkValue);
-                setMorph(headMesh, 'eyeBlinkRight', blinkValue);
-
-                // Idle head bob (relative to centered position)
-                if (modelGroup) {
-                    modelGroup.position.y = -1.55 + Math.sin(t * 0.8) * 0.005;
-                    modelGroup.rotation.y = Math.sin(t * 0.5) * 0.03;
-                }
-
-                // Resize if canvas changed size
-                const w = canvas.clientWidth;
-                const h = canvas.clientHeight;
-                if (canvas.width !== w || canvas.height !== h) {
-                    renderer.setSize(w, h, false);
-                    camera.aspect = w / h;
-                    camera.updateProjectionMatrix();
-                }
-
-                renderer.render(scene, camera);
-            };
-
-            animate();
-        });
-
-        // ── Cleanup ────────────────────────────────────────────────────────────
-        const dispose = () => {
-            cancelAnimationFrame(animFrameId);
-            renderer.dispose();
+            // Connect to start the WebRTC session
+            await didAgentService.connect();
         };
-        disposeRef.current = dispose;
-        return dispose;
-    }, []); // run once on mount only
+
+        init();
+
+        return () => {
+            didAgentService.disconnect();
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // ── Speak when speakText changes ────────────────────────────────────────
+    useEffect(() => {
+        if (
+            speakText &&
+            speakText !== lastSpeakTextRef.current &&
+            connectionState === 'connected'
+        ) {
+            lastSpeakTextRef.current = speakText;
+            didAgentService.speak(speakText);
+        }
+    }, [speakText, connectionState]);
+
+    // ── Render ──────────────────────────────────────────────────────────────
+    const isConnected = connectionState === 'connected';
+    const isStreaming = videoState === 'streaming';
 
     return (
         <div className="relative w-full h-full">
-            {/* 3-D canvas */}
-            <canvas
-                ref={canvasRef}
-                className="w-full h-full"
-                style={{ display: 'block', background: 'transparent' }}
+            {/* Single WebRTC stream video (handles both idle portrait and speaking animation) */}
+            <video
+                ref={streamVideoRef}
+                className="absolute inset-0 w-full h-full object-cover"
+                autoPlay
+                playsInline
+                muted={!isConnected}
             />
 
+            {/* Connection status overlay */}
+            {!isConnected && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-10">
+                    {connectionState === 'connecting' && (
+                        <>
+                            <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
+                            <p className={`text-sm font-medium ${STATUS_COLORS[accentColor]}`}>
+                                Connecting to avatar...
+                            </p>
+                        </>
+                    )}
+                    {connectionState === 'idle' && (
+                        <>
+                            <div className="w-10 h-10 border-2 border-white/20 border-t-white rounded-full animate-spin mb-3" />
+                            <p className="text-sm font-medium text-gray-400">
+                                Initialising avatar...
+                            </p>
+                        </>
+                    )}
+                    {connectionState === 'error' && (
+                        <div className="text-center px-4">
+                            <div className="w-10 h-10 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center mx-auto mb-3">
+                                <span className="text-red-400 text-lg">!</span>
+                            </div>
+                            <p className="text-sm text-red-400 font-medium mb-1">
+                                Avatar connection failed
+                            </p>
+                            <p className="text-xs text-gray-500 max-w-[200px] break-words">
+                                {error || 'Please check your connection and try again'}
+                            </p>
+                            <button
+                                onClick={() => {
+                                    setError('');
+                                    setConnectionState('connecting');
+                                    didAgentService.reconnect();
+                                }}
+                                className="mt-3 px-4 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-xs text-white transition-colors"
+                            >
+                                Retry
+                            </button>
+                        </div>
+                    )}
+                    {connectionState === 'disconnected' && (
+                        <div className="text-center">
+                            <p className="text-sm text-gray-400 mb-2">Avatar disconnected</p>
+                            <button
+                                onClick={() => {
+                                    setConnectionState('connecting');
+                                    didAgentService.reconnect();
+                                }}
+                                className="px-4 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-xs text-white transition-colors"
+                            >
+                                Reconnect
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Connected indicator (small dot) */}
+            {isConnected && (
+                <div className="absolute top-2 left-2 flex items-center space-x-1.5 px-2 py-1 bg-black/50 backdrop-blur-sm rounded-full border border-white/10 z-10">
+                    <div
+                        className={`w-1.5 h-1.5 rounded-full ${isStreaming ? 'bg-green-400 animate-pulse' : 'bg-green-400'
+                            }`}
+                    />
+                    <span className="text-[9px] text-gray-300 font-medium uppercase tracking-wider">
+                        {isStreaming ? 'Speaking' : 'Live'}
+                    </span>
+                </div>
+            )}
+
             {/* Animated speaking rings */}
-            {isSpeaking && (
+            {isSpeaking && isConnected && (
                 <>
                     <div
                         className={`absolute inset-[-8px] border-2 rounded-xl pointer-events-none ${RING_COLORS[accentColor]} animate-[ping_1.8s_ease-out_infinite]`}

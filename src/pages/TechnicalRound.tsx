@@ -76,6 +76,7 @@ const TechnicalRound: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isCameraOn, setIsCameraOn] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [avatarSpeakText, setAvatarSpeakText] = useState<string>('');
 
   // Anti-cheat / proctoring state
   const [tabSwitchCount, setTabSwitchCount] = useState(0);
@@ -398,12 +399,8 @@ const TechnicalRound: React.FC = () => {
         captureFrame(questionId);
       }, 2000);
 
-      // Speak the question
-      try {
-        await azureTTS.speak(question, 'technical');
-      } catch (ttsError) {
-        console.warn('TTS failed, continuing without audio:', ttsError);
-      }
+      // Speak the question via D-ID avatar
+      setAvatarSpeakText(question);
 
     } catch (error) {
       console.error('Error starting round:', error);
@@ -502,8 +499,8 @@ const TechnicalRound: React.FC = () => {
         setActivePanel('chat');
       }
 
-      // Speak the response
-      await azureTTS.speak(nextQuestion, 'technical');
+      // Speak the response via D-ID avatar
+      setAvatarSpeakText(nextQuestion);
 
     } catch (error) {
       console.error('Error handling user response:', error);
@@ -1299,7 +1296,7 @@ const TechnicalRound: React.FC = () => {
                 )}
               </div>
               <div className="flex-1 relative bg-black/40 min-h-[200px]">
-                <InterviewerAvatar isSpeaking={isLoading} accentColor="blue" />
+                <InterviewerAvatar isSpeaking={isLoading} accentColor="blue" speakText={avatarSpeakText} />
               </div>
             </div>
 

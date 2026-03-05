@@ -42,16 +42,44 @@ mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 })
-.then(() => console.log('MongoDB connected'))
-.catch(err => console.error('MongoDB connection error:', err));
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB connection error:', err));
 
 // API routes
 app.use('/api/videos', videoRoutes);
 
+// D-ID Client Key generation endpoint
+app.post('/api/did/client-key', async (req, res) => {
+  const DID_API_KEY = process.env.DID_API_KEY;
+  if (!DID_API_KEY) {
+    return res.status(500).json({ error: 'DID_API_KEY not configured on server' });
+  }
+
+  try {
+    const response = await fetch('https://api.d-id.com/agents/client-key', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Basic ${DID_API_KEY}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`D-ID API returned ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    console.error('Error fetching D-ID client key:', err);
+    res.status(500).json({ error: 'Failed to generate client key' });
+  }
+});
+
 // Serve static assets if in production
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static('dist'));
-  
+
   app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
   });

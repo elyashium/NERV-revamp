@@ -85,6 +85,7 @@ const CoreRound: React.FC = (): JSX.Element => {
   const [isInterviewComplete, setIsInterviewComplete] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [conversationId, setConversationId] = useState<string>('');
+  const [shouldStartRound, setShouldStartRound] = useState(false);
 
   // Generate conversation ID
   useEffect(() => {
@@ -140,6 +141,8 @@ const CoreRound: React.FC = (): JSX.Element => {
     }, 1000);
     return () => clearInterval(timer);
   }, [isInterviewStarted, isInterviewComplete]);
+
+
 
   // Emotion capture effect
   useEffect(() => {
@@ -242,6 +245,16 @@ const CoreRound: React.FC = (): JSX.Element => {
       setIsLoading(false);
     }
   };
+
+  // Call startCurrentRound once the flag is set (after function is defined)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (shouldStartRound) {
+      setShouldStartRound(false);
+      startCurrentRound();
+    }
+  }, [shouldStartRound]);
+
 
   const handleUserResponse = async (transcription: string) => {
     let safeText = (typeof transcription === 'string') ? transcription.trim() : '';
@@ -541,11 +554,12 @@ const CoreRound: React.FC = (): JSX.Element => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // startInterview function needs to be declared before usage in JSX
+
+  // startInterview function
   const startInterview = () => {
     setIsInterviewStarted(true);
     setTimeRemaining(roundDuration * 60);
-    startCurrentRound();
+    setShouldStartRound(true);
   };
 
   if (!isInterviewStarted) {

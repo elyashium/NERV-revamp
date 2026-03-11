@@ -115,6 +115,7 @@ const TechnicalRound: React.FC = () => {
   const [isInterviewStarted, setIsInterviewStarted] = useState(false);
   const [isInterviewComplete, setIsInterviewComplete] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [shouldStartRound, setShouldStartRound] = useState(false);
 
   // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -123,96 +124,26 @@ const TechnicalRound: React.FC = () => {
   const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Start interview
-  const startInterview = () => {
-    setIsInterviewStarted(true);
-    setTimeRemaining(roundDuration * 60);
-    startCurrentRound();
+  // Fetch user details and resume data (declared early for useEffect use)
+  const fetchUserDetails = async () => {
+    if (!currentUser) return;
+    try {
+      setIsLoading(true);
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.resumeText) {
+          const parsedResume = await resumeService.parseResume(userData.resumeText);
+          setResumeData(parsedResume);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      setError('Failed to load user details');
+    } finally {
+      setIsLoading(false);
+    }
   };
-
-  if (!isInterviewStarted) {
-    return (
-      <div className="min-h-screen bg-black text-white p-4 md:p-8 flex flex-col justify-center">
-        <div className="max-w-3xl mx-auto w-full">
-          <div className="flex items-center mb-6">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="p-2 hover:bg-white/10 rounded-xl transition-all mr-4 border border-white/5"
-              title="Back to dashboard"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-            <div>
-              <h1 className="text-2xl font-black uppercase tracking-tighter">
-                NERV <span className="text-white/30">/</span> Technical
-              </h1>
-              <p className="text-[8px] font-bold uppercase tracking-[0.3em] text-blue-500/60 mt-0.5">Round 01: Systems & Logic</p>
-            </div>
-          </div>
-
-          <div className="bg-white/[0.01] backdrop-blur-xl rounded-3xl p-6 md:p-10 relative overflow-hidden">
-            {/* Background Glow */}
-            <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/10 blur-[100px]" />
-            
-            <h2 className="text-xs font-bold uppercase tracking-[0.2em] mb-8 pb-3 border-b border-white/5 text-gray-500 text-center">Protocol Initialization</h2>
-
-            <div className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 relative group">
-                  <div className="absolute top-4 right-4 p-2 bg-blue-500/10 rounded-lg">
-                    <Code2 className="h-4 w-4 text-blue-400" />
-                  </div>
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-3">Focus Areas</h3>
-                  <ul className="space-y-2">
-                    {['Data Structures', 'Algorithms', 'System Logic', 'Problem Solving'].map((item, i) => (
-                      <li key={i} className="flex items-center text-[11px] font-medium text-gray-300">
-                        <div className="w-1 h-1 bg-blue-500 rounded-full mr-2" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 relative group">
-                  <div className="absolute top-4 right-4 p-2 bg-blue-500/10 rounded-lg">
-                    <Clock className="h-4 w-4 text-blue-400" />
-                  </div>
-                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-3">Parameters</h3>
-                  <div className="space-y-4 mt-2">
-                    <div>
-                      <p className="text-[8px] uppercase tracking-widest text-gray-500 mb-1">Duration</p>
-                      <p className="text-xl font-black">{roundDuration} <span className="text-[10px] text-gray-600 uppercase">min</span></p>
-                    </div>
-                    <div>
-                      <p className="text-[8px] uppercase tracking-widest text-gray-500 mb-1">Environment</p>
-                      <p className="text-[11px] font-bold text-gray-300">Integrated Code Editor + Live Chat</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10 text-center">
-                <p className="text-[9px] font-medium text-blue-400/80 uppercase tracking-widest leading-relaxed">
-                  Proctoring protocols are active. Do not switch tabs or leave the window.
-                </p>
-              </div>
-
-              <button
-                onClick={startInterview}
-                className="w-full relative group overflow-hidden bg-white text-black py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all hover:scale-[1.01] active:scale-[0.99] shadow-xl shadow-blue-500/5"
-              >
-                <span className="relative z-10 flex items-center justify-center">
-                  Initialize Technical Assessment
-                  <ArrowRight className="ml-2 h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
-                </span>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Generate conversation ID when component mounts
   useEffect(() => {
@@ -299,26 +230,46 @@ const TechnicalRound: React.FC = () => {
     };
   }, [isInterviewStarted, isInterviewComplete]);
 
-  // Fetch user details and resume data
-  const fetchUserDetails = async () => {
-    if (!currentUser) return;
-    try {
-      setIsLoading(true);
-      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        if (userData.resumeText) {
-          const parsedResume = await resumeService.parseResume(userData.resumeText);
-          setResumeData(parsedResume);
-        }
+  // Emotion capture effect
+  useEffect(() => {
+    console.log('[TechnicalRound] Emotion capture effect triggered:', { isCameraOn, isCapturingExpression });
+
+    if (isCapturingExpression) {
+      console.log('[TechnicalRound] Starting emotion capture...');
+      const timeout = setTimeout(() => {
+        console.log('[TechnicalRound] Capturing emotion now...');
+        captureFrame();
+        setIsCapturingExpression(false);
+        console.log('[TechnicalRound] Emotion capture completed, stopping...');
+      }, 2000);
+      captureIntervalRef.current = timeout;
+    } else {
+      if (captureIntervalRef.current) {
+        console.log('[TechnicalRound] Clearing emotion capture timeout...');
+        clearTimeout(captureIntervalRef.current);
+        captureIntervalRef.current = null;
       }
-    } catch (error) {
-      console.error('Error fetching user details:', error);
-      setError('Failed to load user details');
-    } finally {
-      setIsLoading(false);
     }
+
+    return () => {
+      if (captureIntervalRef.current) {
+        clearTimeout(captureIntervalRef.current);
+      }
+    };
+  }, [isCameraOn, isCapturingExpression]);
+
+  // Load user details on mount
+  useEffect(() => {
+    fetchUserDetails();
+  }, [currentUser]);
+
+
+  const startInterview = () => {
+    setIsInterviewStarted(true);
+    setTimeRemaining(roundDuration * 60);
+    setShouldStartRound(true);
   };
+
 
   // Detect and fix truncated/incomplete questions
   const sanitizeQuestion = async (q: string, round: 'technical' | 'core' | 'hr' = 'technical'): Promise<string> => {
@@ -432,6 +383,15 @@ const TechnicalRound: React.FC = () => {
       setIsLoading(false);
     }
   };
+
+  // Call startCurrentRound once the flag is set (after function is defined)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (shouldStartRound) {
+      setShouldStartRound(false);
+      startCurrentRound();
+    }
+  }, [shouldStartRound]);
 
   // Handle user response
   const handleUserResponse = async (transcription: string) => {
@@ -901,40 +861,6 @@ const TechnicalRound: React.FC = () => {
     }
   };
 
-  // Start/stop emotion analysis (only when capturing)
-  useEffect(() => {
-    console.log('[TechnicalRound] Emotion capture effect triggered:', { isCameraOn, isCapturingExpression });
-
-    if (isCapturingExpression) {
-      console.log('[TechnicalRound] Starting emotion capture...');
-      // Capture emotion immediately when capturing starts
-      const timeout = setTimeout(() => {
-        console.log('[TechnicalRound] Capturing emotion now...');
-        captureFrame();
-        setIsCapturingExpression(false); // Stop capturing after one capture
-        console.log('[TechnicalRound] Emotion capture completed, stopping...');
-      }, 2000); // Wait 2 seconds for user to see/hear the question
-      captureIntervalRef.current = timeout;
-    } else {
-      if (captureIntervalRef.current) {
-        console.log('[TechnicalRound] Clearing emotion capture timeout...');
-        clearTimeout(captureIntervalRef.current);
-        captureIntervalRef.current = null;
-      }
-    }
-
-    return () => {
-      if (captureIntervalRef.current) {
-        clearTimeout(captureIntervalRef.current);
-      }
-    };
-  }, [isCameraOn, isCapturingExpression]);
-
-  // Load user details on mount
-  useEffect(() => {
-    fetchUserDetails();
-  }, [currentUser]);
-
   // Format time helper
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -944,32 +870,73 @@ const TechnicalRound: React.FC = () => {
 
   if (!isInterviewStarted) {
     return (
-      <div className="min-h-screen bg-primary text-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center mb-8">
-            <h1 className="text-3xl font-bold">Technical Round - DSA Interview</h1>
+      <div className="min-h-screen bg-black text-white p-4 md:p-8 flex flex-col justify-center">
+        <div className="max-w-3xl mx-auto w-full">
+          <div className="flex items-center mb-6">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="p-2 hover:bg-white/10 rounded-xl transition-all mr-4 border border-white/5"
+              title="Back to dashboard"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-black uppercase tracking-tighter">
+                NERV <span className="text-white/30">/</span> Technical
+              </h1>
+              <p className="text-[8px] font-bold uppercase tracking-[0.3em] text-blue-500/60 mt-0.5">Round 01: Systems & Logic</p>
+            </div>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8">
-            <h2 className="text-2xl font-semibold mb-6">Technical Round Setup</h2>
-
-            <div className="space-y-6">
-              <div className="bg-blue-500/20 border border-blue-500/30 rounded-lg p-4">
-                <h3 className="text-lg font-semibold mb-2">Round Details</h3>
-                <p className="text-gray-300">
-                  This round focuses on Data Structures and Algorithms (DSA) questions.
-                  The interviewer will ask technical questions and adapt based on your confidence level.
-                </p>
-                <p className="text-sm text-gray-400 mt-2">
-                  Duration: {roundDuration} minutes
+          <div className="bg-white/[0.01] backdrop-blur-xl rounded-3xl p-6 md:p-10 relative overflow-hidden">
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/10 blur-[100px]" />
+            <h2 className="text-xs font-bold uppercase tracking-[0.2em] mb-8 pb-3 border-b border-white/5 text-gray-500 text-center">Protocol Initialization</h2>
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 relative group">
+                  <div className="absolute top-4 right-4 p-2 bg-blue-500/10 rounded-lg">
+                    <Code2 className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-3">Focus Areas</h3>
+                  <ul className="space-y-2">
+                    {['Data Structures', 'Algorithms', 'System Logic', 'Problem Solving'].map((item, i) => (
+                      <li key={i} className="flex items-center text-[11px] font-medium text-gray-300">
+                        <div className="w-1 h-1 bg-blue-500 rounded-full mr-2" />{item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 relative group">
+                  <div className="absolute top-4 right-4 p-2 bg-blue-500/10 rounded-lg">
+                    <Clock className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-3">Parameters</h3>
+                  <div className="space-y-4 mt-2">
+                    <div>
+                      <p className="text-[8px] uppercase tracking-widest text-gray-500 mb-1">Duration</p>
+                      <p className="text-xl font-black">{roundDuration} <span className="text-[10px] text-gray-600 uppercase">min</span></p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] uppercase tracking-widest text-gray-500 mb-1">Environment</p>
+                      <p className="text-[11px] font-bold text-gray-300">Integrated Code Editor + Live Chat</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10 text-center">
+                <p className="text-[9px] font-medium text-blue-400/80 uppercase tracking-widest leading-relaxed">
+                  Proctoring protocols are active. Do not switch tabs or leave the window.
                 </p>
               </div>
-
               <button
                 onClick={startInterview}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors"
+                className="w-full relative group overflow-hidden bg-white text-black py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all hover:scale-[1.01] active:scale-[0.99] shadow-xl shadow-blue-500/5"
               >
-                Start Technical Round
+                <span className="relative z-10 flex items-center justify-center">
+                  Initialize Technical Assessment
+                  <ArrowRight className="ml-2 h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
               </button>
             </div>
           </div>

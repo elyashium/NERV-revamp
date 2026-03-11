@@ -8,15 +8,15 @@ import { doc, getDoc } from 'firebase/firestore';
 import {
   Mic, MicOff, Camera, CameraOff,
   Clock, Brain, X, Shield, AlertTriangle,
-  Code2, MessageSquare, Play, Copy, ChevronDown
+  Code2, MessageSquare, Play, Copy, ChevronDown,
+  ArrowLeft, ArrowRight
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import Editor from '@monaco-editor/react';
 
 // Services
-import { sarvamTTS as azureTTS } from '../services/sarvamTTSService';
-import { sarvamSTT as whisperService } from '../services/sarvamSTTService';
-import { humeAI } from '../services/humeAIService';
+import { azureTTS } from '../services/sarvamTTSService';
+import { whisperService } from '../services/sarvamSTTService';
 import { apiService } from '../services/apiService';
 import { openAI, QuestionContext } from '../services/openAIService';
 import { resumeService } from '../services/resumeService';
@@ -27,6 +27,7 @@ interface Message {
   text: string;
   sender: 'user' | 'ai';
   timestamp: Date;
+  round?: string;
 }
 
 interface UserExpression {
@@ -53,23 +54,6 @@ const TechnicalRound: React.FC = () => {
 
   // Get round duration from location state
   const roundDuration = location.state?.roundDuration || 3;
-
-  // Debug logging
-  console.log('TechnicalRound component rendered');
-  console.log('Location state:', location.state);
-  console.log('Round duration:', roundDuration);
-
-  // Early return for debugging
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-primary text-white p-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-3xl font-bold mb-4">Loading...</h1>
-          <p>Please wait while we load your interview session.</p>
-        </div>
-      </div>
-    );
-  }
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
@@ -126,12 +110,109 @@ const TechnicalRound: React.FC = () => {
     return codingKeywords.some(kw => lower.includes(kw));
   }, []);
 
-
   // Time management
   const [timeRemaining, setTimeRemaining] = useState(roundDuration * 60);
   const [isInterviewStarted, setIsInterviewStarted] = useState(false);
   const [isInterviewComplete, setIsInterviewComplete] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+
+  // Refs
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Start interview
+  const startInterview = () => {
+    setIsInterviewStarted(true);
+    setTimeRemaining(roundDuration * 60);
+    startCurrentRound();
+  };
+
+  if (!isInterviewStarted) {
+    return (
+      <div className="min-h-screen bg-black text-white p-4 md:p-8 flex flex-col justify-center">
+        <div className="max-w-3xl mx-auto w-full">
+          <div className="flex items-center mb-6">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="p-2 hover:bg-white/10 rounded-xl transition-all mr-4 border border-white/5"
+              title="Back to dashboard"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-black uppercase tracking-tighter">
+                NERV <span className="text-white/30">/</span> Technical
+              </h1>
+              <p className="text-[8px] font-bold uppercase tracking-[0.3em] text-blue-500/60 mt-0.5">Round 01: Systems & Logic</p>
+            </div>
+          </div>
+
+          <div className="bg-white/[0.01] backdrop-blur-xl rounded-3xl p-6 md:p-10 relative overflow-hidden">
+            {/* Background Glow */}
+            <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/10 blur-[100px]" />
+            
+            <h2 className="text-xs font-bold uppercase tracking-[0.2em] mb-8 pb-3 border-b border-white/5 text-gray-500 text-center">Protocol Initialization</h2>
+
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 relative group">
+                  <div className="absolute top-4 right-4 p-2 bg-blue-500/10 rounded-lg">
+                    <Code2 className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-3">Focus Areas</h3>
+                  <ul className="space-y-2">
+                    {['Data Structures', 'Algorithms', 'System Logic', 'Problem Solving'].map((item, i) => (
+                      <li key={i} className="flex items-center text-[11px] font-medium text-gray-300">
+                        <div className="w-1 h-1 bg-blue-500 rounded-full mr-2" />
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 relative group">
+                  <div className="absolute top-4 right-4 p-2 bg-blue-500/10 rounded-lg">
+                    <Clock className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <h3 className="text-[10px] font-bold uppercase tracking-widest text-blue-400 mb-3">Parameters</h3>
+                  <div className="space-y-4 mt-2">
+                    <div>
+                      <p className="text-[8px] uppercase tracking-widest text-gray-500 mb-1">Duration</p>
+                      <p className="text-xl font-black">{roundDuration} <span className="text-[10px] text-gray-600 uppercase">min</span></p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] uppercase tracking-widest text-gray-500 mb-1">Environment</p>
+                      <p className="text-[11px] font-bold text-gray-300">Integrated Code Editor + Live Chat</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-500/5 p-4 rounded-xl border border-blue-500/10 text-center">
+                <p className="text-[9px] font-medium text-blue-400/80 uppercase tracking-widest leading-relaxed">
+                  Proctoring protocols are active. Do not switch tabs or leave the window.
+                </p>
+              </div>
+
+              <button
+                onClick={startInterview}
+                className="w-full relative group overflow-hidden bg-white text-black py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all hover:scale-[1.01] active:scale-[0.99] shadow-xl shadow-blue-500/5"
+              >
+                <span className="relative z-10 flex items-center justify-center">
+                  Initialize Technical Assessment
+                  <ArrowRight className="ml-2 h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-black/5 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Generate conversation ID when component mounts
   useEffect(() => {
@@ -140,35 +221,18 @@ const TechnicalRound: React.FC = () => {
     console.log('[TechnicalRound] Generated conversation ID:', newConversationId);
   }, []);
 
-  // Removed AUTO-TEST injection that was polluting real emotion data
-
   // Load resume data from location state or Firebase
   useEffect(() => {
     const loadResumeData = async () => {
       if (location.state?.resumeData) {
         setResumeData(location.state.resumeData);
         console.log('TechnicalRound - Loaded resume data from location state:', location.state.resumeData);
-        console.log('TechnicalRound - Resume data structure:', {
-          skills: location.state.resumeData?.skills?.length || 0,
-          projects: location.state.resumeData?.projects?.length || 0,
-          achievements: location.state.resumeData?.achievements?.length || 0,
-          experience: location.state.resumeData?.experience?.length || 0,
-          education: location.state.resumeData?.education?.length || 0
-        });
       } else if (currentUser) {
-        // Fallback to Firebase if not in location state
         try {
           const resumeData = await getResumeData(currentUser.uid);
           if (resumeData) {
             setResumeData(resumeData);
             console.log('TechnicalRound - Loaded resume data from Firebase:', resumeData);
-            console.log('TechnicalRound - Resume data structure:', {
-              skills: resumeData?.skills?.length || 0,
-              projects: resumeData?.projects?.length || 0,
-              achievements: resumeData?.achievements?.length || 0,
-              experience: resumeData?.experience?.length || 0,
-              education: resumeData?.education?.length || 0
-            });
           }
         } catch (error) {
           console.error('Error loading resume data from Firebase:', error);
@@ -183,18 +247,9 @@ const TechnicalRound: React.FC = () => {
   useEffect(() => {
     if (isInterviewComplete) {
       console.log('[TechnicalRound] Interview completed, collecting data...');
-      console.log('[TechnicalRound] Messages:', messages);
-      console.log('[TechnicalRound] Question expressions:', questionExpressions);
       setShowSummary(true);
     }
-  }, [isInterviewComplete, messages, questionExpressions]);
-
-  // Refs
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const captureIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  }, [isInterviewComplete]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -223,11 +278,7 @@ const TechnicalRound: React.FC = () => {
     if (!isInterviewStarted || isInterviewComplete) return;
 
     const triggerWarning = () => {
-      setTabSwitchCount(prev => {
-        const next = prev + 1;
-        // if (next >= 3) setIsFlagged(true);
-        return next;
-      });
+      setTabSwitchCount(prev => prev + 1);
       setIsWarningVisible(true);
       if (warningTimeoutRef.current) clearTimeout(warningTimeoutRef.current);
       warningTimeoutRef.current = setTimeout(() => setIsWarningVisible(false), 5000);
@@ -251,21 +302,14 @@ const TechnicalRound: React.FC = () => {
   // Fetch user details and resume data
   const fetchUserDetails = async () => {
     if (!currentUser) return;
-
     try {
       setIsLoading(true);
       const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-
       if (userDoc.exists()) {
         const userData = userDoc.data();
-
-        // Parse resume if available
         if (userData.resumeText) {
           const parsedResume = await resumeService.parseResume(userData.resumeText);
-          console.log('Resume data loaded:', parsedResume);
           setResumeData(parsedResume);
-        } else {
-          console.log('No resume text found in user data');
         }
       }
     } catch (error) {
@@ -274,13 +318,6 @@ const TechnicalRound: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Start interview
-  const startInterview = () => {
-    setIsInterviewStarted(true);
-    setTimeRemaining(roundDuration * 60);
-    startCurrentRound();
   };
 
   // Detect and fix truncated/incomplete questions
@@ -367,7 +404,8 @@ const TechnicalRound: React.FC = () => {
         id: questionId,
         text: question,
         sender: 'ai',
-        timestamp: new Date()
+        timestamp: new Date(),
+        round: 'technical'
       };
       setMessages(prev => [...prev, questionMessage]);
       setPreviousQuestions(prev => [...prev, question]);
@@ -411,7 +449,8 @@ const TechnicalRound: React.FC = () => {
         id: Date.now().toString(),
         text: safeText,
         sender: 'user',
-        timestamp: new Date()
+        timestamp: new Date(),
+        round: 'technical'
       };
       setMessages(prev => [...prev, userMessage]);
 

@@ -232,6 +232,73 @@ FORMAT: Ask ONE clear question with test cases if applicable. Keep it under 50 w
     };
     return fallbacks[round];
   }
+
+  /**
+   * Generate comprehensive interview summary
+   */
+  async generateComprehensiveSummary(
+    technicalHistory: any,
+    projectHistory: any,
+    hrHistory: any,
+    resumeData: any,
+    questionExpressions: any[]
+  ): Promise<string> {
+    try {
+      const systemPrompt = `You are an expert technical recruiter and senior software engineer. Your task is to analyze the following interview transcript and candidate data to generate a comprehensive, highly actionable Markdown report.
+
+The report MUST be structured nicely with relevant headings, bullet points, and actionable feedback. Do NOT be overly friendly; be professional, direct, and analytical. Focus on factual evidence from the transcript. 
+
+Include the following sections:
+# 🎯 Interview Performance Report
+
+## 📊 Executive Summary
+(Overall performance, key strengths, main areas for improvement)
+
+## 🧠 Technical Assessment (DSA & Problem Solving)
+(Evaluate their coding logic, efficiency, and problem-solving approach)
+
+## 💻 Core/Project Discussion (System Design, DBMS, OOPS, etc.)
+(Evaluate their core CS knowledge and project experience)
+
+## 🤝 HR/Behavioral Assessment (Communication, Leadership)
+(Evaluate their communication skills, confidence, and behavioral traits)
+
+## 📈 Actionable Recommendations
+(3-5 specific, actionable steps the candidate should take to improve)
+
+Provide ONLY the Markdown report as your response. Do not include any other text.`;
+
+      // Clean the transcript to reduce token size and focus on actual Q&A
+      const cleanHistory = (history: any) => {
+        if (!history || !history.messages) return [];
+        return history.messages.map((m: any) => ({
+          role: m.sender === 'ai' ? 'Interviewer' : 'Candidate',
+          text: m.text
+        }));
+      };
+
+      const inputData = {
+        technicalRound: cleanHistory(technicalHistory),
+        projectRound: cleanHistory(projectHistory),
+        hrRound: cleanHistory(hrHistory),
+        resumeContext: resumeData,
+        emotionAndConfidenceData: questionExpressions.map((e: any) => ({
+          question: e.questionId,
+          dominantEmotion: e.emotion,
+          confidence: e.confidence,
+          isStruggling: e.isStruggling
+        }))
+      };
+
+      const userPrompt = `Here is the interview data (in JSON format) to summarize:\n\n${JSON.stringify(inputData, null, 2)}`;
+
+      const result = await callGroq(systemPrompt, userPrompt);
+      return result || "Failed to generate comprehensive summary.";
+    } catch (error) {
+      console.error('Error generating comprehensive summary via Groq:', error);
+      throw error;
+    }
+  }
 }
 
 export const openAI = new OpenAIService();
